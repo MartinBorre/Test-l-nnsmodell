@@ -1,0 +1,343 @@
+<!DOCTYPE html>
+<html lang="no">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Kompensasjonsmodell – Møller Bil</title>
+<link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700;800&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/react/18.2.0/umd/react.production.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/react-dom/18.2.0/umd/react-dom.production.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/babel-standalone/7.23.9/babel.min.js"></script>
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:'Outfit',sans-serif;background:#EDEBE5}
+input[type=range]{-webkit-appearance:none;height:6px;border-radius:3px;background:#D0CFC9;outline:none;width:100%}
+input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:20px;height:20px;border-radius:50%;background:#1400FF;cursor:pointer}
+input[type=number]{outline:none}
+input[type=number]:focus{border-color:#1400FF!important}
+table{border-collapse:collapse;width:100%}
+::-webkit-scrollbar{width:6px}
+::-webkit-scrollbar-track{background:#F5F4F0}
+::-webkit-scrollbar-thumb{background:#D0CFC9;border-radius:3px}
+@media(max-width:960px){
+  .app-layout{flex-direction:column!important}
+  .side-panel{width:100%!important;max-height:none!important;position:relative!important;top:0!important}
+  .main-panel{width:100%!important}
+}
+</style>
+</head>
+<body>
+<div id="root"></div>
+<script type="text/babel">
+const{useState,useCallback,useMemo}=React;
+const C={navy:"#1A1A3E",blue:"#1400FF",coral:"#E8503A",cream:"#EDEBE5",lg:"#F5F4F0",gray:"#6B6B7B",white:"#FFF",old:"#7B7B8E",green:"#16A34A",red:"#DC2626"};
+
+const defaults={
+  nyGrunnlonn:420000,nyAns:2476,nyTrinn:[1500,3000,3500,3000],nyG:[6,10,14],jevnhet:5000,
+  nyM:{finansiering:2000,forsikring:400,dekkpakke:800,dekkhotell:500,innbytte:1500,tilbehor:500,serviceavtale:1000,ladelosning:700},
+  dagFast:33641,dagAns:2476,dagTrinn:[1850,4650,5560],dagG:[6,12],
+  dagT:{utstyr5k:541,utstyr12k:721,dekksalg:618,serviceavtale:618,leasing:515,forsikring:361,innbytte:1030,dekkhotell:103},
+  dagP:{forhandler120:35000,selger120:35000,ktiForh:15000,ktiSelg:15000},
+  biler:10,harNyAns:true,harDagAns:true,harJevn:true,
+  pen:{finansiering:.35,forsikring:.25,dekkpakke:.30,dekkhotell:.15,innbytte:.40,tilbehor:.20,serviceavtale:.25,ladelosning:.20,utstyr5k:.20,utstyr12k:.10,dekksalg:.30,leasing:.15},
+  dagPT:{forhandler120:true,selger120:true,ktiForh:true,ktiSelg:true},
+};
+
+function nyVol(b,t,g){return Math.min(b,g[0])*t[0]+Math.max(Math.min(b,g[1])-g[0],0)*t[1]+Math.max(Math.min(b,g[2])-g[1],0)*t[2]+Math.max(b-g[2],0)*t[3]}
+function dagProv(b,t,g){return Math.min(b,g[0])*t[0]+Math.max(Math.min(b,g[1])-g[0],0)*t[1]+Math.max(b-g[1],0)*t[2]}
+const fmt=n=>Math.round(n).toLocaleString("nb-NO");
+const fmtD=n=>(n>=0?"+":"")+fmt(n);
+
+function NI({value,onChange,small,prefix,suffix,step,min,max,w}){
+  return <div style={{display:"flex",alignItems:"center",gap:3}}>
+    {prefix&&<span style={{color:C.gray,fontSize:11}}>{prefix}</span>}
+    <input type="number" value={value} onChange={e=>onChange(parseFloat(e.target.value)||0)} step={step||1} min={min} max={max}
+      style={{width:w||(small?55:80),padding:"3px 5px",border:"1px solid #D0CFC9",borderRadius:3,fontSize:12,fontFamily:"'DM Mono',monospace",color:C.blue,background:"#FFFDE7",textAlign:"right"}}/>
+    {suffix&&<span style={{color:C.gray,fontSize:10}}>{suffix}</span>}
+  </div>
+}
+
+function Tog({value,onChange,label,small}){
+  const sz=small?{w:28,h:16,dot:12}:{w:36,h:20,dot:16};
+  return <label style={{display:"flex",alignItems:"center",gap:6,cursor:"pointer",fontSize:small?11:13}}>
+    <div onClick={()=>onChange(!value)} style={{width:sz.w,height:sz.h,borderRadius:sz.h/2,position:"relative",background:value?C.blue:"#ccc",transition:"background .2s",cursor:"pointer",flexShrink:0}}>
+      <div style={{width:sz.dot,height:sz.dot,borderRadius:sz.dot/2,background:"white",position:"absolute",top:(sz.h-sz.dot)/2,left:value?sz.w-sz.dot-2:2,transition:"left .2s"}}/>
+    </div>
+    {label&&<span style={{color:C.navy}}>{label}</span>}
+  </label>
+}
+
+function PS({title,color,children,defaultOpen}){
+  const[open,setOpen]=useState(defaultOpen!==false);
+  return <div style={{marginBottom:8}}>
+    <div onClick={()=>setOpen(!open)} style={{background:color||C.navy,color:"white",padding:"5px 10px",fontSize:10,fontWeight:700,letterSpacing:1.2,textTransform:"uppercase",borderRadius:open?"4px 4px 0 0":"4px",cursor:"pointer",display:"flex",justifyContent:"space-between",alignItems:"center"}}>
+      {title}<span style={{fontSize:11,transform:open?"rotate(0)":"rotate(-90deg)",transition:"transform .15s"}}>▾</span>
+    </div>
+    {open&&<div style={{background:"white",border:"1px solid #E5E4DF",borderTop:"none",borderRadius:"0 0 4px 4px",padding:"6px 8px"}}>{children}</div>}
+  </div>
+}
+
+function PR({label,children}){
+  return <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",padding:"3px 0",borderBottom:"1px solid #F5F4F0",fontSize:12,color:C.navy}}>
+    <span style={{flex:1,minWidth:0,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{label}</span>
+    <div style={{flexShrink:0,marginLeft:6}}>{children}</div>
+  </div>
+}
+
+function Bar({dagens,ny,label}){
+  const mx=Math.max(dagens,ny,1);
+  return <div style={{marginBottom:10}}>
+    <div style={{display:"flex",justifyContent:"space-between",fontSize:11,color:C.gray,marginBottom:2}}>
+      <span>{label}</span>
+      <span style={{color:ny>dagens?C.green:ny<dagens?C.red:C.gray,fontFamily:"'DM Mono',monospace",fontSize:10}}>{fmtD(ny-dagens)}</span>
+    </div>
+    <div style={{height:16,background:"#F0EFEA",borderRadius:3,marginBottom:2}}>
+      <div style={{width:`${Math.max(dagens/mx*100,0.5)}%`,background:C.old,borderRadius:3,height:"100%",display:"flex",alignItems:"center",justifyContent:"flex-end",paddingRight:4,minWidth:20}}>
+        <span style={{fontSize:8,color:"white",fontWeight:700}}>{fmt(dagens)}</span>
+      </div>
+    </div>
+    <div style={{height:16,background:"#F0EFEA",borderRadius:3}}>
+      <div style={{width:`${Math.max(ny/mx*100,0.5)}%`,background:C.blue,borderRadius:3,height:"100%",display:"flex",alignItems:"center",justifyContent:"flex-end",paddingRight:4,minWidth:ny>0?20:0}}>
+        <span style={{fontSize:8,color:"white",fontWeight:700}}>{fmt(ny)}</span>
+      </div>
+    </div>
+  </div>
+}
+
+function App(){
+  const[s,setS]=useState(defaults);
+  const[tab,setTab]=useState("compare");
+
+  const u=useCallback((path,val)=>{
+    setS(p=>{
+      const n={...p};
+      if(typeof path==="string"&&path.includes(".")){const[a,b]=path.split(".");n[a]={...p[a],[b]:val}}
+      else if(Array.isArray(path)){const[a,i]=path;const arr=[...p[a]];arr[i]=val;n[a]=arr}
+      else n[path]=val;
+      return n;
+    });
+  },[]);
+
+  const nyFT=s.nyGrunnlonn+(s.harNyAns?s.nyAns*12:0);
+  const dagFT=(s.dagFast+(s.harDagAns?s.dagAns:0))*12;
+  const calcNM=(b)=>b*s.pen.finansiering*s.nyM.finansiering+b*s.pen.forsikring*s.nyM.forsikring+b*s.pen.dekkpakke*s.nyM.dekkpakke+b*s.pen.dekkhotell*s.nyM.dekkhotell+b*s.pen.innbytte*s.nyM.innbytte+b*s.pen.tilbehor*s.nyM.tilbehor+b*s.pen.serviceavtale*s.nyM.serviceavtale+b*s.pen.ladelosning*s.nyM.ladelosning;
+  const calcDT=(b)=>b*s.pen.forsikring*s.dagT.forsikring+b*s.pen.dekksalg*s.dagT.dekksalg+b*s.pen.dekkhotell*s.dagT.dekkhotell+b*s.pen.serviceavtale*s.dagT.serviceavtale+b*s.pen.innbytte*s.dagT.innbytte+b*s.pen.utstyr5k*s.dagT.utstyr5k+b*s.pen.utstyr12k*s.dagT.utstyr12k+b*s.pen.leasing*s.dagT.leasing;
+  const calcDP=()=>(s.dagPT.forhandler120?s.dagP.forhandler120:0)+(s.dagPT.selger120?s.dagP.selger120:0)+(s.dagPT.ktiForh?s.dagP.ktiForh:0)+(s.dagPT.ktiSelg?s.dagP.ktiSelg:0);
+
+  const calc=useMemo(()=>{
+    const b=s.biler;
+    const nV=nyVol(b,s.nyTrinn,s.nyG)*12,nJ=s.harJevn?s.jevnhet*12:0,nM=calcNM(b)*12,nT=nyFT+nV+nJ+nM;
+    const dP=dagProv(b,s.dagTrinn,s.dagG)*12,dT=calcDT(b)*12,dPr=calcDP(),dTot=dagFT+dP+dT+dPr;
+    const scenarios=[4,6,7,8,10,12,14,17,20].map(sb=>{
+      const nt=nyFT+nyVol(sb,s.nyTrinn,s.nyG)*12+(s.harJevn?s.jevnhet*12:0)+calcNM(sb)*12;
+      const dt=dagFT+dagProv(sb,s.dagTrinn,s.dagG)*12+calcDT(sb)*12+calcDP();
+      return{biler:sb,dagens:dt,ny:nt,diff:nt-dt};
+    });
+    return{nF:nyFT,nV,nJ,nM,nT,dFA:dagFT,dP,dT,dPr,dTot,diff:nT-dTot,scenarios};
+  },[s,nyFT,dagFT]);
+
+  const ts=t=>({padding:"8px 16px",fontSize:12,fontWeight:600,cursor:"pointer",border:"none",background:tab===t?C.navy:"transparent",color:tab===t?"white":C.navy,borderRadius:"5px 5px 0 0",fontFamily:"'Outfit',sans-serif",letterSpacing:.3});
+
+  return <div style={{minHeight:"100vh",background:C.cream}}>
+    <div style={{background:C.navy,padding:"14px 20px 0",borderBottom:`3px solid ${C.blue}`}}>
+      <div style={{maxWidth:1200,margin:"0 auto"}}>
+        <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",marginBottom:12}}>
+          <div>
+            <h1 style={{color:"white",fontSize:20,fontWeight:800,margin:0,letterSpacing:-.5}}>Kompensasjonsmodell</h1>
+            <p style={{color:C.blue,fontSize:12,margin:"3px 0 0",fontWeight:500}}>Ny vs. dagens modell — bilselgere nye biler</p>
+          </div>
+          <span style={{color:C.gray,fontSize:10,paddingTop:4}}>Møller Bil</span>
+        </div>
+        <div style={{display:"flex",gap:2}}>
+          <button style={ts("compare")} onClick={()=>setTab("compare")}>Sammenligning</button>
+          <button style={ts("scenarios")} onClick={()=>setTab("scenarios")}>Scenarioer</button>
+        </div>
+      </div>
+    </div>
+
+    <div className="app-layout" style={{maxWidth:1200,margin:"0 auto",padding:"16px 20px",display:"flex",gap:16,alignItems:"flex-start"}}>
+
+      {/* SIDE PANEL */}
+      <div className="side-panel" style={{width:320,flexShrink:0,position:"sticky",top:16,maxHeight:"calc(100vh - 100px)",overflowY:"auto",overflowX:"hidden"}}>
+        <div style={{background:"white",borderRadius:6,padding:10,marginBottom:8,border:"1px solid #E5E4DF"}}>
+          <div style={{display:"flex",justifyContent:"space-between",alignItems:"baseline",marginBottom:4}}>
+            <span style={{fontSize:12,color:C.navy,fontWeight:600}}>Biler per måned</span>
+            <span style={{fontSize:24,fontWeight:800,color:C.blue,fontFamily:"'DM Mono',monospace"}}>{s.biler}</span>
+          </div>
+          <input type="range" min={1} max={25} value={s.biler} onChange={e=>u("biler",parseInt(e.target.value))} style={{accentColor:C.blue}}/>
+          <div style={{display:"flex",justifyContent:"space-between",fontSize:9,color:C.gray,marginTop:2}}><span>1</span><span>5</span><span>10</span><span>15</span><span>20</span><span>25</span></div>
+          <div style={{display:"flex",gap:8,marginTop:8,flexWrap:"wrap"}}>
+            <Tog small value={s.harDagAns} onChange={v=>u("harDagAns",v)} label="Ans. dagens"/>
+            <Tog small value={s.harNyAns} onChange={v=>u("harNyAns",v)} label="Ans. ny"/>
+            <Tog small value={s.harJevn} onChange={v=>u("harJevn",v)} label="Jevnhet"/>
+          </div>
+        </div>
+
+        <PS title="Ny – Fastlønn" color={C.blue}>
+          <PR label="Grunnlønn/år"><NI value={s.nyGrunnlonn} onChange={v=>u("nyGrunnlonn",v)} prefix="kr" w={75}/></PR>
+          <PR label="Ansiennitet/mnd"><NI value={s.nyAns} onChange={v=>u("nyAns",v)} prefix="kr" w={65}/></PR>
+          <PR label="Jevnhetsbonus/mnd"><NI value={s.jevnhet} onChange={v=>u("jevnhet",v)} prefix="kr" w={65}/></PR>
+          <div style={{fontSize:11,color:C.gray,paddingTop:4,borderTop:"1px solid #F0EFEA",marginTop:4}}>
+            Total m/ans: <strong style={{color:C.navy}}>{fmt(s.nyGrunnlonn+s.nyAns*12)}</strong>
+          </div>
+        </PS>
+
+        <PS title="Ny – Volumbonus (terskler + satser)" color={C.blue}>
+          {s.nyTrinn.map((v,i)=>
+            <PR key={i} label={i<3?`Trinn ${i+1} (t.o.m.)`:`Trinn 4 (${s.nyG[2]+1}+)`}>
+              <div style={{display:"flex",alignItems:"center",gap:3}}>
+                {i<3&&<NI value={s.nyG[i]} onChange={v2=>u(["nyG",i],v2)} w={36} step={1} min={i>0?s.nyG[i-1]+1:1}/>}
+                <NI value={v} onChange={v2=>u(["nyTrinn",i],v2)} prefix="kr" w={58}/>
+              </div>
+            </PR>
+          )}
+          <div style={{fontSize:10,color:C.gray,paddingTop:3,borderTop:"1px solid #F0EFEA",marginTop:3}}>
+            1–{s.nyG[0]} / {s.nyG[0]+1}–{s.nyG[1]} / {s.nyG[1]+1}–{s.nyG[2]} / {s.nyG[2]+1}+
+          </div>
+        </PS>
+
+        <PS title="Ny – Mersalgssatser" color={C.blue} defaultOpen={false}>
+          {[["finansiering","Finansiering"],["forsikring","Forsikring"],["dekkpakke","Dekkpakke"],["dekkhotell","Dekkhotell"],["innbytte","Innbytte"],["tilbehor","Tilbehør"],["serviceavtale","Serviceavtale"],["ladelosning","Ladeløsning"]].map(([k,l])=>
+            <PR key={k} label={l}><NI value={s.nyM[k]} onChange={v=>u(`nyM.${k}`,v)} prefix="kr" w={58}/></PR>
+          )}
+        </PS>
+
+        <PS title="Dagens – Fastlønn" color={C.old}>
+          <PR label="Fastlønn/mnd"><NI value={s.dagFast} onChange={v=>u("dagFast",v)} prefix="kr" w={70}/></PR>
+          <PR label="Ansiennitet/mnd"><NI value={s.dagAns} onChange={v=>u("dagAns",v)} prefix="kr" w={65}/></PR>
+        </PS>
+
+        <PS title="Dagens – Provisjon (terskler + satser)" color={C.old}>
+          {s.dagTrinn.map((v,i)=>
+            <PR key={i} label={i<2?`Trinn ${i+1} (t.o.m.)`:`Trinn 3 (${s.dagG[1]+1}+)`}>
+              <div style={{display:"flex",alignItems:"center",gap:3}}>
+                {i<2&&<NI value={s.dagG[i]} onChange={v2=>u(["dagG",i],v2)} w={36} step={1} min={i>0?s.dagG[i-1]+1:1}/>}
+                <NI value={v} onChange={v2=>u(["dagTrinn",i],v2)} prefix="kr" w={58}/>
+              </div>
+            </PR>
+          )}
+          <div style={{fontSize:10,color:C.gray,paddingTop:3,borderTop:"1px solid #F0EFEA",marginTop:3}}>
+            1–{s.dagG[0]} / {s.dagG[0]+1}–{s.dagG[1]} / {s.dagG[1]+1}+
+          </div>
+        </PS>
+
+        <PS title="Dagens – Tilleggssatser" color={C.old} defaultOpen={false}>
+          {[["utstyr5k","Utstyr >5k"],["utstyr12k","Utstyr >12k"],["dekksalg","Dekksalg"],["serviceavtale","Serviceavtale"],["leasing","Leasing"],["forsikring","Forsikring"],["innbytte","Innbyttebil"],["dekkhotell","Dekkhotell"]].map(([k,l])=>
+            <PR key={k} label={l}><NI value={s.dagT[k]} onChange={v=>u(`dagT.${k}`,v)} prefix="kr" w={58}/></PR>
+          )}
+        </PS>
+
+        <PS title="Dagens – Prestasjonsbonus" color={C.old} defaultOpen={false}>
+          {[["forhandler120","Forh. >120/selger"],["selger120","Selger >120"],["ktiForh","KTI forhandler"],["ktiSelg","KTI selger"]].map(([k,l])=>
+            <PR key={k} label={l}>
+              <div style={{display:"flex",alignItems:"center",gap:4}}>
+                <NI value={s.dagP[k]} onChange={v=>u(`dagP.${k}`,v)} prefix="kr" w={52}/>
+                <Tog small value={s.dagPT[k]} onChange={v=>u(`dagPT.${k}`,v)}/>
+              </div>
+            </PR>
+          )}
+        </PS>
+
+        <PS title="Penetrasjonsrater" color={C.navy}>
+          <p style={{fontSize:10,color:C.gray,margin:"0 0 4px"}}>Andel kunder per produkt.</p>
+          {[["forsikring","Forsikring"],["dekkpakke","Dekk/Dekkpakke"],["dekkhotell","Dekkhotell"],["serviceavtale","Serviceavtale"],["innbytte","Innbytte"],["tilbehor","Tilbehør >5k"],["utstyr5k","Utstyr >5k (dag.)"],["utstyr12k","Utstyr >12k (dag.)"],["leasing","Leasing (dag.)"],["dekksalg","Dekksalg (dag.)"],["finansiering","Finansiering (ny)"],["ladelosning","Ladeløsning (ny)"]].map(([k,l])=>
+            <PR key={k} label={l}><NI value={Math.round(s.pen[k]*100)} onChange={v=>u(`pen.${k}`,v/100)} w={42} suffix="%" step={5}/></PR>
+          )}
+        </PS>
+      </div>
+
+      {/* MAIN PANEL */}
+      <div className="main-panel" style={{flex:1,minWidth:0}}>
+
+      {tab==="compare"&&<>
+        <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10,marginBottom:14}}>
+          <div style={{background:C.old,borderRadius:8,padding:14,color:"white"}}>
+            <div style={{fontSize:10,textTransform:"uppercase",letterSpacing:1.5,opacity:.8,marginBottom:3}}>Dagens modell</div>
+            <div style={{fontSize:26,fontWeight:800,fontFamily:"'DM Mono',monospace"}}>kr {fmt(calc.dTot)}</div>
+            <div style={{fontSize:10,opacity:.7,marginTop:2}}>Variabel: {calc.dTot>0?((calc.dTot-calc.dFA)/calc.dTot*100).toFixed(0):0}%</div>
+          </div>
+          <div style={{background:C.blue,borderRadius:8,padding:14,color:"white"}}>
+            <div style={{fontSize:10,textTransform:"uppercase",letterSpacing:1.5,opacity:.8,marginBottom:3}}>Ny modell</div>
+            <div style={{fontSize:26,fontWeight:800,fontFamily:"'DM Mono',monospace"}}>kr {fmt(calc.nT)}</div>
+            <div style={{fontSize:10,opacity:.7,marginTop:2}}>Variabel: {calc.nT>0?((calc.nT-calc.nF)/calc.nT*100).toFixed(0):0}%</div>
+          </div>
+        </div>
+
+        <div style={{background:calc.diff>=0?"#E8F5E9":"#FFEBEE",borderRadius:6,padding:"8px 14px",marginBottom:14,display:"flex",justifyContent:"space-between",alignItems:"center",border:`1px solid ${calc.diff>=0?"#A5D6A7":"#EF9A9A"}`}}>
+          <span style={{fontSize:12,color:C.navy,fontWeight:600}}>Differanse (ny − dagens)</span>
+          <span style={{fontSize:18,fontWeight:800,fontFamily:"'DM Mono',monospace",color:calc.diff>=0?C.green:C.red}}>{fmtD(calc.diff)} kr</span>
+        </div>
+
+        <div style={{background:"white",borderRadius:8,padding:14,border:"1px solid #E5E4DF",marginBottom:14}}>
+          <div style={{display:"flex",gap:12,marginBottom:10,fontSize:10}}>
+            <div style={{display:"flex",alignItems:"center",gap:4}}><div style={{width:10,height:10,borderRadius:2,background:C.old}}/> Dagens</div>
+            <div style={{display:"flex",alignItems:"center",gap:4}}><div style={{width:10,height:10,borderRadius:2,background:C.blue}}/> Ny</div>
+          </div>
+          <Bar label="Fastlønn" dagens={calc.dFA} ny={calc.nF}/>
+          <Bar label="Provisjon / Volumbonus" dagens={calc.dP} ny={calc.nV}/>
+          <Bar label="Jevnhetsbonus" dagens={0} ny={calc.nJ}/>
+          <Bar label="Tillegg / Mersalg" dagens={calc.dT} ny={calc.nM}/>
+          <Bar label="Prestasjonsbonus" dagens={calc.dPr} ny={0}/>
+        </div>
+
+        <div style={{background:"white",borderRadius:8,border:"1px solid #E5E4DF",overflow:"hidden"}}>
+          <table style={{fontSize:12}}>
+            <thead><tr style={{background:C.navy,color:"white"}}>
+              <th style={{padding:"8px 10px",textAlign:"left",fontWeight:600,fontSize:10}}>Komponent</th>
+              <th style={{padding:"8px 10px",textAlign:"right",fontWeight:600,fontSize:10}}>Dagens</th>
+              <th style={{padding:"8px 10px",textAlign:"right",fontWeight:600,fontSize:10}}>Ny modell</th>
+              <th style={{padding:"8px 10px",textAlign:"right",fontWeight:600,fontSize:10}}>Diff</th>
+            </tr></thead>
+            <tbody>
+              {[["Fastlønn",calc.dFA,calc.nF],["Provisjon/Volumbonus",calc.dP,calc.nV],["Jevnhetsbonus",0,calc.nJ],["Tillegg/Mersalg",calc.dT,calc.nM],["Prestasjonsbonus",calc.dPr,0]].map(([l,d,n],i)=>
+                <tr key={l} style={{background:i%2===1?C.lg:"white"}}>
+                  <td style={{padding:"6px 10px",color:C.navy}}>{l}</td>
+                  <td style={{padding:"6px 10px",textAlign:"right",fontFamily:"'DM Mono',monospace",color:C.old}}>{fmt(d)}</td>
+                  <td style={{padding:"6px 10px",textAlign:"right",fontFamily:"'DM Mono',monospace",color:C.blue}}>{fmt(n)}</td>
+                  <td style={{padding:"6px 10px",textAlign:"right",fontFamily:"'DM Mono',monospace",color:n-d>=0?C.green:C.red,fontWeight:600}}>{fmtD(n-d)}</td>
+                </tr>
+              )}
+              <tr style={{background:C.navy}}>
+                <td style={{padding:"8px 10px",color:"white",fontWeight:700}}>Total</td>
+                <td style={{padding:"8px 10px",textAlign:"right",fontFamily:"'DM Mono',monospace",color:"white",fontWeight:700}}>{fmt(calc.dTot)}</td>
+                <td style={{padding:"8px 10px",textAlign:"right",fontFamily:"'DM Mono',monospace",color:"white",fontWeight:700}}>{fmt(calc.nT)}</td>
+                <td style={{padding:"8px 10px",textAlign:"right",fontFamily:"'DM Mono',monospace",color:calc.diff>=0?"#86EFAC":"#FCA5A5",fontWeight:700}}>{fmtD(calc.diff)}</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </>}
+
+      {tab==="scenarios"&&
+        <div style={{background:"white",borderRadius:8,border:"1px solid #E5E4DF",overflow:"hidden"}}>
+          <table style={{fontSize:12}}>
+            <thead><tr style={{background:C.navy,color:"white"}}>
+              {["Biler/mnd","Biler/år","Dagens","Ny modell","Differanse"].map(h=>
+                <th key={h} style={{padding:"8px 10px",textAlign:h.includes("Biler")?"center":"right",fontWeight:600,fontSize:10,letterSpacing:.3}}>{h}</th>
+              )}
+            </tr></thead>
+            <tbody>{calc.scenarios.map((sc,i)=>
+              <tr key={sc.biler} style={{background:sc.biler===s.biler?"#E8EEFF":i%2===1?C.lg:"white",fontWeight:sc.biler===s.biler?700:400}}>
+                <td style={{padding:"7px 10px",textAlign:"center",color:C.navy}}>{sc.biler}</td>
+                <td style={{padding:"7px 10px",textAlign:"center",color:C.gray}}>{sc.biler*12}</td>
+                <td style={{padding:"7px 10px",textAlign:"right",fontFamily:"'DM Mono',monospace",color:C.old}}>kr {fmt(sc.dagens)}</td>
+                <td style={{padding:"7px 10px",textAlign:"right",fontFamily:"'DM Mono',monospace",color:C.blue}}>kr {fmt(sc.ny)}</td>
+                <td style={{padding:"7px 10px",textAlign:"right",fontFamily:"'DM Mono',monospace",color:sc.diff>=0?C.green:C.red,fontWeight:600}}>{fmtD(sc.diff)}</td>
+              </tr>
+            )}</tbody>
+          </table>
+          <div style={{padding:"6px 10px",fontSize:10,color:C.gray,borderTop:"1px solid #E5E4DF"}}>
+            Positiv = ny modell betaler mer. Uthevet rad matcher valgt biler/mnd.
+          </div>
+        </div>
+      }
+
+      </div>
+    </div>
+  </div>;
+}
+
+ReactDOM.render(<App/>, document.getElementById('root'));
+</script>
+</body>
+</html>
