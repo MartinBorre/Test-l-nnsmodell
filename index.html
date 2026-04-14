@@ -41,7 +41,8 @@ const D={
   dPT:{forhandler120:true,selger120:true,ktiForh:true,ktiSelg:true},
   nPT:{forhandler120:true,selger120:true,ktiForh:true,ktiSelg:true},
   kM1:30,kS1:1500,kM2:99,kS2:2000,kA:true,
-  b:10,hDA:true,hNA:true,hJ:true,
+  dFirmabil:132000,nFirmabil:132000,
+  b:10,hDA:true,hNA:true,hJ:false,
   pen:{utstyr5k:.20,utstyr12k:.10,dekksalg:.30,serviceavtale:.25,leasing:.15,forsikring:.25,innbytte:.40,dekkhotell:.15,annet:.10},
 };
 
@@ -153,9 +154,9 @@ function App(){
   const cDP=()=>pLbl.reduce((a,[k])=>a+(s.dPT[k]?s.dP[k]:0),0);
   const full=(bm)=>{
     const nV=nVol(bm,s.nyT,s.nyG)*12,nJ=s.hJ?s.jevn*12:0,nM=cM(bm,s.nyM)*12,nPr=cNP();
-    const kvQ=kB(bm*3,s.kM1,s.kS1,s.kM2,s.kS2,s.kA);const nTot=nFT+nV+nJ+nM+nPr+kvQ*4;
-    const dP=dPrv(bm,s.dT,s.dG)*12,dT=cM(bm,s.dM)*12,dPr=cDP(),dTot=dFT+dP+dT+dPr;
-    return{nF:nFT,nV,nJ,nM,nPr,nKv:kvQ*4,nTot,dFA:dFT,dP,dT,dPr,dTot,diff:nTot-dTot};
+    const kvQ=kB(bm*3,s.kM1,s.kS1,s.kM2,s.kS2,s.kA);const nTot=nFT+nV+nJ+nM+nPr+kvQ*4+s.nFirmabil;
+    const dP=dPrv(bm,s.dT,s.dG)*12,dT=cM(bm,s.dM)*12,dPr=cDP(),dTot=dFT+dP+dT+dPr+s.dFirmabil;
+    return{nF:nFT,nV,nJ,nM,nPr,nKv:kvQ*4,nFb:s.nFirmabil,nTot,dFA:dFT,dP,dT,dPr,dFb:s.dFirmabil,dTot,diff:nTot-dTot};
   };
   const calc=useMemo(()=>{
     const c=full(s.b);
@@ -212,6 +213,9 @@ function App(){
             <tr><td style={{padding:"3px 0",color:C.navy}}>Jevnhet/mnd</td>
               <td style={{textAlign:"right",padding:"3px 4px",color:C.gray,fontSize:10}}>—</td>
               <td style={{textAlign:"right",padding:"3px 4px"}}><NI value={s.jevn} onChange={v=>u("jevn",v)} w={68}/></td></tr>
+            <tr style={{background:C.lg}}><td style={{padding:"3px 0",color:C.navy}}>Firmabil (verdi/år)</td>
+              <td style={{textAlign:"right",padding:"3px 4px"}}><NI value={s.dFirmabil} onChange={v=>u("dFirmabil",v)} w={68}/></td>
+              <td style={{textAlign:"right",padding:"3px 4px"}}><NI value={s.nFirmabil} onChange={v=>u("nFirmabil",v)} w={68}/></td></tr>
           </tbody></table>
         </PS>
 
@@ -308,6 +312,7 @@ function App(){
           <BarC label="Tillegg / Mersalg" d={calc.dT} n={calc.nM}/>
           <BarC label="Prestasjonsbonus" d={calc.dPr} n={calc.nPr}/>
           <BarC label="Kvartalsbonus" d={0} n={calc.nKv}/>
+          <BarC label="Firmabil" d={calc.dFb} n={calc.nFb}/>
         </div>
         {/* CHART always visible on compare tab */}
         <div style={{background:"white",borderRadius:8,padding:16,border:"1px solid #E5E4DF",marginBottom:14}}>
@@ -322,7 +327,7 @@ function App(){
             <th style={{padding:"8px 10px",textAlign:"right",fontWeight:600,fontSize:10}}>Ny</th>
             <th style={{padding:"8px 10px",textAlign:"right",fontWeight:600,fontSize:10}}>Diff</th>
           </tr></thead><tbody>
-            {[["Fastlønn",calc.dFA,calc.nF],["Provisjon/Volum",calc.dP,calc.nV],["Jevnhetsbonus",0,calc.nJ],["Mersalg/Tillegg",calc.dT,calc.nM],["Prestasjonsbonus",calc.dPr,calc.nPr],["Kvartalsbonus",0,calc.nKv]].map(([l,d,n],i)=>
+            {[["Fastlønn",calc.dFA,calc.nF],["Provisjon/Volum",calc.dP,calc.nV],["Jevnhetsbonus",0,calc.nJ],["Mersalg/Tillegg",calc.dT,calc.nM],["Prestasjonsbonus",calc.dPr,calc.nPr],["Kvartalsbonus",0,calc.nKv],["Firmabil",calc.dFb,calc.nFb]].map(([l,d,n],i)=>
               <tr key={l} style={{background:i%2===1?C.lg:"white"}}>
                 <td style={{padding:"6px 10px",color:C.navy}}>{l}</td>
                 <td style={{padding:"6px 10px",textAlign:"right",fontFamily:"'DM Mono',monospace",color:C.old}}>{fmt(d)}</td>
